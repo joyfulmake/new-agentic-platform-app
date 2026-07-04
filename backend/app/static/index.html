@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Intent-Driven Agentic Platform</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 3rem auto; padding: 0 1rem; color: #1a1a1a; }
+  h1 { font-size: 1.4rem; }
+  textarea, input { width: 100%; box-sizing: border-box; font-size: 1rem; padding: 0.6rem; margin: 0.3rem 0 1rem; }
+  button { font-size: 1rem; padding: 0.6rem 1.2rem; cursor: pointer; }
+  .slot { margin-bottom: 1rem; }
+  .slot label { display: block; font-weight: 600; margin-bottom: 0.2rem; }
+  .slot small { color: #666; }
+  #status { color: #666; margin: 1rem 0; }
+  #plan, #result { white-space: pre-wrap; background: #f5f5f5; padding: 1rem; border-radius: 6px; margin-top: 1rem; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <h1>Intent-Driven Agentic Platform</h1>
+  <p>Enter any topic. The system figures out what it needs to know, asks only for what's missing, then plans and runs a small agent pipeline to produce a real result.</p>
+
+  <div id="topic-form">
+    <textarea id="topic" rows="2" placeholder="e.g. plan a sustainable garden"></textarea>
+    <button id="submit-topic">Start</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div id="questions" class="hidden">
+    <h3>A couple of things I need to know:</h3>
+    <div id="slot-fields"></div>
+    <button id="submit-answers">Continue</button>
+  </div>
+
+  <div id="plan" class="hidden"></div>
+  <div id="result" class="hidden"></div>
+
+<script>
+let sessionId = null;
+
+async function postJSON(url, body) {
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+function renderQuestions(questions) {
+  const container = document.getElementById("slot-fields");
+  container.innerHTML = "";
+  for (const q of questions) {
+    const div = document.createElement("div");
+    div.className = "slot";
+    div.innerHTML = `<label>${q.name}</label><small>${q.description}</small><input data-slot="${q.name}" />`;
+    container.appendChild(div);
+  }
+  document.getElementById("questions").classList.remove("hidden");
+}
+
+function renderSession(data) {
+  document.getElementById("status").textContent = `Status: ${data.status}` + (data.intent ? ` (intent: ${data.intent})` : "");
+
+  if (data.status === "awaiting_input" && data.questions) {
+    renderQuestions(data.questions);
+  } else {
+    document.getElementById("questions").classList.add("hidden");
+  }
+
+  if (data.plan) {
+    const planEl = document.getElementById("plan");
+    planEl.textContent = "Plan:\n" + JSON.stringify(data.plan, null, 2);
+    planEl.classList.remove("hidden");
+  }
+
+  if (data.status === "done" && data.result) {
+    const resultEl = document.getElementById("result");
+    resultEl.textContent = data.result;
+    resultEl.classList.remove("hidden");
+  }
+
+  if (data.status === "failed") {
+    document.getElementById("status").textContent = `Failed: ${data.error}`;
+  }
+}
+
+document.getElementById("submit-topic").addEventListener("click", async () => {
+  const topic = document.getElementById("topic").value.trim();
+  if (!topic) return;
+  document.getElementById("status").textContent = "Working...";
+  const data = await postJSON("/session", { topic });
+  sessionId = data.session_id;
+  renderSession(data);
+});
+
+document.getElementById("submit-answers").addEventListener("click", async () => {
+  const inputs = document.querySelectorAll("#slot-fields input");
+  const slot_values = {};
+  inputs.forEach((el) => (slot_values[el.dataset.slot] = el.value));
+  document.getElementById("status").textContent = "Working...";
+  const data = await postJSON(`/session/${sessionId}/answer`, { slot_values });
+  renderSession(data);
+});
+</script>
+</body>
+</html>
