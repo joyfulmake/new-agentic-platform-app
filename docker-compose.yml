@@ -1,0 +1,38 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  app:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////data/platform.db
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+    volumes:
+      - app_data:/data
+    depends_on:
+      - ollama
+
+  # Optional: swap SQLite for Postgres by uncommenting this service and
+  # setting DATABASE_URL=postgresql://platform:platform@postgres:5432/platform
+  # postgres:
+  #   image: postgres:16
+  #   environment:
+  #     - POSTGRES_USER=platform
+  #     - POSTGRES_PASSWORD=platform
+  #     - POSTGRES_DB=platform
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  ollama_data:
+  app_data:
+  # postgres_data:
